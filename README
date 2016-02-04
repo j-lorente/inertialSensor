@@ -1,3 +1,5 @@
-inertialSensor
+ -- inertialSensor --
 
 Obtaining data from MTi sensor (IMU)
+
+ZMP calculation and plotting
