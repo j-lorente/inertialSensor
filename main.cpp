@@ -9,12 +9,15 @@
 using namespace std;
 using namespace yarp::os;
 
+//Origin of coordinates established in the middle point between the feet
+#define Xcom 0 //Distance to COM in X axis [cm]
+#define Ycom 0 //Distance to COM in Y axis [cm]
+#define Zcom 103.6602 //Distance to COM in Z axis [cm]
+
 int main()
 {
-    double x,y,z,x2,y2,z2;
-
-    //Origin of coordinates established in the middle point between the feet.
-    double Xcom=0,Ycom=0,Zcom=103.6602; //Distance to COM in each axis (cm)
+    double ang_x, ang_y, ang_z, acc_x, acc_y, acc_z, spd_x, spd_y, spd_z, mag_x, mag_y, mag_z;
+    double x2,y2,z2;
 
     //Initialise YARP
     Network yarp;
@@ -28,10 +31,15 @@ int main()
     BufferedPort<Bottle> readPort;
     readPort.open("/inertial:i");
 
+    //YARP port for writing data
+    Port writePort;
+    writePort.open("/sender");
+
     Time::delay(2); //Wait for ports to open
 
     //Connect input and output ports
     Network::connect("/inertial","/inertial:i");
+    Network::connect("/sender", "/reader");
 
     cout << "\nObtaining data from sensor...\n" << endl;
 
@@ -103,6 +111,22 @@ int main()
             }
             printf("\n");
         }
+
+        //Transformation from sensor coordinates to robot coordinates
+        x2 = -acc_x;
+        y2 = acc_y;
+        z2 = -acc_z;
+
+        //Calculation of the Zero-Moment Point
+        double Xzmp = Xcom - (Zcom / z2)*x2; //ZMP X coordinate [cm]
+        double Yzmp = Ycom - (Zcom / z2)*y2; //ZMP Y coordinate [cm]
+        printf("\nZMP = (%f, %f) cm\n\n", Xzmp, Yzmp);
+
+        //Send ZMP coordinates through YARP
+        Bottle send;
+        send.addDouble(Xzmp);
+        send.addDouble(Yzmp);
+        writePort.write(send);
 
         Time::delay(1.0/4.0);
     }
