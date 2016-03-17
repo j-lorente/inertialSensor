@@ -5,6 +5,7 @@
 
 #include <yarp/os/all.h>
 #include <yarp/dev/all.h>
+#include <deque>
 
 using namespace std;
 using namespace yarp::os;
@@ -14,10 +15,13 @@ using namespace yarp::os;
 #define Ycom 0 //Distance to COM in Y axis [cm]
 #define Zcom 103.6602 //Distance to COM in Z axis [cm]
 
+#define samples 30
+
 int main()
 {
     double ang_x, ang_y, ang_z, acc_x, acc_y, acc_z, spd_x, spd_y, spd_z, mag_x, mag_y, mag_z;
-    double x2,y2,z2;
+    double x,y,z,x2,y2,z2;
+    deque<double> x_sensor(samples), y_sensor(samples), z_sensor(samples);
 
     //Initialise YARP
     Network yarp;
@@ -74,14 +78,20 @@ int main()
                 case 3:
                     acc_x=input->get(i).asDouble();
                     cout << "Acceleration X: " << acc_x << " m/s²" << endl;
+                    x_sensor.push_front(acc_x);
+                    x_sensor.pop_back();
                     break;
                 case 4:
                     acc_y=input->get(i).asDouble();
                     cout << "Acceleration Y: " << acc_y << " m/s²" << endl;
+                    y_sensor.push_front(acc_y);
+                    y_sensor.pop_back();
                     break;
                 case 5:
                     acc_z=input->get(i).asDouble();
                     cout << "Acceleration Z: " << acc_z << " m/s²" << endl;
+                    z_sensor.push_front(acc_z);
+                    z_sensor.pop_back();
                     break;
                 case 6:
                     spd_x=input->get(i).asDouble();
@@ -112,10 +122,24 @@ int main()
             printf("\n");
         }
 
+        //Low-Pass Filter
+        x = 0.0;
+        y = 0.0;
+        z = 0.0;
+        for(deque<double>::iterator it = x_sensor.begin(); it != x_sensor.end(); it++)
+            x = x + *it;
+        for(deque<double>::iterator it = y_sensor.begin(); it != y_sensor.end(); it++)
+            y = y + *it;
+        for(deque<double>::iterator it = z_sensor.begin(); it != z_sensor.end(); it++)
+            z = z + *it;
+        x = x / samples;
+        y = y / samples;
+        z = z / samples;
+
         //Transformation from sensor coordinates to robot coordinates
-        x2 = -acc_x;
-        y2 = acc_y;
-        z2 = -acc_z;
+        x2 = -x;
+        y2 = y;
+        z2 = -z;
 
         //Calculation of the Zero-Moment Point
         double Xzmp = Xcom - (Zcom / z2)*x2; //ZMP X coordinate [cm]
@@ -127,8 +151,6 @@ int main()
         send.addDouble(Xzmp);
         send.addDouble(Yzmp);
         writePort.write(send);
-
-        Time::delay(1.0/4.0);
     }
     return 0;
 }
